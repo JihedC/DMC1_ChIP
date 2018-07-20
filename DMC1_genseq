@@ -1,0 +1,94 @@
+#!/bin/bash
+
+
+#need to include the files as a bash array at the beginning I think
+#Chip1_S_DA10_1.fq.gz Chip1_S_DA10_2.fq.gz
+#Chip2_S_DA11_1.fq.gz Chip2_S_DA11_2.fq.gz
+#Chip3_S_DA12_1.fq.gz Chip3_S_DA12_2.fq.gz
+#Chip4_S_DA19_1.fq.gz Chip4_S_DA19_2.fq.gz
+#Chip5_S_DA20_1.fq.gz Chip5_S_DA20_2.fq.gz
+#Chip6_S_DA21_1.fq.gz Chip6_S_DA21_2.fq.gz
+
+### Array of the compressed fq files (.gz)
+cd ~/DMC1/analysis/raw_data/
+declare -a DMC1 #DMC1=() would also work but it might be confusing with the parenthese
+for file in *.fq.gz #Remember that bash is case sensitive, the 'fq' might require some changes depending on the files used
+do
+    DMC1=("${DMC1[@]}" "$file")
+done
+echo "${DMC1[@]}"
+
+
+### Definition of the variables paths
+INDEX="~/Reference_Genome"
+RAW_DATA="~/DMC1/analysis/raw_data"
+BAM="~/DMC1/analysis/raw_data/bam"
+SCRIPT="~/scripts"
+
+### Make folders necessary for analysis, comment out if already present
+mkdir -p ~/DMC1/analysis/raw_data/bam #-p flag to not have error if the directory already exists
+
+
+for i in "${DMC1[@]}"
+do
+	echo "Mapping bowtie2 sample "${i}" to tomato genome..."
+	bowtie2 --very-sensitive --no-discordant --no-mixed -p 16 -k 10  -x "${INDEX}"/Tomato/tomato -1 "${i}"_1.fq.gz -2 "${i}"_2.fq.gz | samtools view -b -F 12 > "$BAM"/"${i}".bam
+
+  echo "Removing unmapped reads from bam..."
+  samtools view -h -F 4 "$BAM"/"${i}".bam > "$BAM"/"${i}".bam
+  # -h : include header in SAM output
+  # -F : only include reads with none of the FLAGS in INT present \
+  # here INT = 4, removes all the reads unmapped
+  echo "Overwriting previous bam file..."
+  samtools view -h -o "$BAM"/"${i}".bam > "$BAM"/"${i}".sam
+  # overwrite the previous bam file with filtered sam### allow a maximum of 2 mismatches in alignment ([^0-9] matches characters not in the range of 0 to 9)
+  echo "Filtering for maximum 2 mismatches in alignment..."
+  samtools view -Sh "$BAM"/${i}.sam | grep -e "^@" -e "XM:i:[012][^0-9]" > "$BAM"/${i}_lowmiss.sam
+  # [012][^0-9] : 0 or 1 or 2 mismatches, excluding all number that could come after with the [^0-9]
+  # 'XM:' is an element of the sam file indicating the mismatches number
+  sed -n 1,15p "$BAM"/${i}_lowmiss.sam > "$BAM"/${i}_lowmiss_multi_header.sam
+  #Don't know what is -n 1,9p, may be generates only headers that is used later
+  #1,9p seems to indicate that the header would contain 9 lines, which is not enough for tomato, needed to chnage it to 15
+  echo "Including only the reads that are properly mapped in pair..."
+  samtools view -S -f 0x02 "$BAM"/${i}_lowmiss.sam | grep -v "XS:i:" | "${SCRIPT}"/foo.py > "$BAM"/${i}_lowmiss_unique.txt
+  # '-f 0x02' only include the reads that are properly mapped in pair
+  # 'grep -v "XS:i:' search that are not matching with "XS:i:" (unique mapping)
+  cat "$BAM"/${i}_lowmiss_multi_header.sam "$BAM"/${i}_lowmiss_unique.txt > "$BAM"/${i}_lowmiss_unique_ori.sam
+  #concatenate both files
+
+  echo "Combining unique and multiple mapping reads..."
+  ### identify and filter multiply mapping reads, and combine with uniquely mapping reads ("both")
+  samtools view -S -f 0x02 "$BAM"/"${i}"_mapped_lowmiss.sam | grep "XS:i:"| "${SCRIPT}"/foo.py > "$BAM"/"${i}"_mapped_lowmiss_multi.txt
+  # '-f 0x02' only include the reads that are properly mapped in pair
+  # 'grep -v "XS:i:' search that are matching with "XS:i:" (multiple mapping)
+  cat "$BAM"/"${i}"_mapped_lowmiss_multi_header.sam "$BAM"/"${i}"_mapped_lowmiss_multi.txt > "$BAM"/"${i}"_mapped_lowmiss_multi.sam
+  # concatenate only header with the paired-reads aligning multiple times
+  samtools view -h -q 10 "$BAM"/"${i}"_mapped_lowmiss_multi.sam > "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.sam
+  # -q 10 include only reads with mapping quality >= 10, why is the quality only 10 ?
+  samtools view -S -f 0x02 "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.sam | grep "XS:i:" | python "${SCRIPT}"/foo.py > "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.txt
+  # same as before but this time only for read quality of 10
+  wc -l "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.txt >> "$BAM"/"${i}"_mdim.stats 2>&1
+  echo "Running R script..."
+  Rscript "${SCRIPT}"/multi_unique_extract_pairend.r "$BAM"/"${i}"_mdim.stats "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.txt "$BAM"/"${i}"_MU.RData "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.txt
+  #the pipeline here takes the multiple aligned reads and pipe it into Rscript to use
+  #the total mapping reads are locaed in the *_mapped_lowmiss.sam
+  #If XS is present the read is mapping multiple time
+
+  #R script rank the mutliple aligning reads and either choose the top one or random reads
+  cat "$BAM"/"${i}"_mapped_lowmiss_multi_header.sam  "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.txt > "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.sam
+
+  rm "$BAM"/"${i}"_mapped_lowmiss_multi.txt "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.txt "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.txt
+  # remove unnecessary files
+  samtools view -bS -o "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.bam "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.sam
+  samtools sort "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.bam -o "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique_sort.bam
+  samtools index "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique_sort.bam
+  samtools merge "$BAM"/"${i}"_mapped_lowmiss_unique_both.bam "$BAM"/"${i}"_mapped_lowmiss_unique_sort.bam "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique_sort.bam
+  # merge 2 sorted bam files
+  samtools sort "$BAM"/"${i}"_mapped_lowmiss_unique_both.bam -o "$BAM"/"${i}"_mapped_lowmiss_unique_both_sort.bam
+  samtools index "$BAM"/"${i}"_mapped_lowmiss_unique_both_sort.bam
+  echo "Removing unnecessary files ..."
+  ### remove no longer required .txt and .sam files
+  rm "$BAM"/"${i}"_mapped_lowmiss_unique.txt
+  rm "$BAM"/"${i}".sam "$BAM"/"${i}"_mapped.sam "$BAM"/"${i}"_mapped_lowmiss.sam "$BAM"/"${i}"_mapped_lowmiss_multi_header.sam "$BAM"/"${i}"_mapped_lowmiss_unique_ori.sam "$BAM"/"${i}"_mapped_lowmiss_unique.sam "$BAM"/"${i}"_mapped_lowmiss_multi.sam "$BAM"/"${i}"_mapped_lowmiss_multi_fq10.sam "$BAM"/"${i}"_mapped_lowmiss_multi_fq10_unique.sam
+
+done
