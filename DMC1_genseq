@@ -29,18 +29,18 @@ SCRIPT="~/scripts"
 #mkdir -p ~/DMC1/analysis/raw_data/bam #-p flag to not have error if the directory already exists
 
 cd ~/DMC1/analysis/raw_data/bam
-for i in Chip1.bam Chip2.bam Chip3.bam Chip4.bam Chip5.bam Chip6.bam
+for i in Chip1 Chip2 Chip3 Chip4 Chip5 Chip6
 do
 	#echo "Mapping bowtie2 sample "${i}" to tomato genome..."
 	#bowtie2 --very-sensitive --no-discordant --no-mixed -p 16 -k 10  -x "${INDEX}"/Tomato/tomato -1 "${i}"_1.fq.gz -2 "${i}"_2.fq.gz | samtools view -b -F 12 > "${i}".bam
 
   echo "Removing unmapped reads from bam..."
-  samtools view -h -F 4 "${i}".bam > "${i}".bam
+  samtools view -h -F 4 "${i}".bam > "${i}"_2.bam
   # -h : include header in SAM output
   # -F : only include reads with none of the FLAGS in INT present \
   # here INT = 4, removes all the reads unmapped
   echo "Overwriting previous "${i}".bam file..."
-  samtools view -h -o "${i}".bam > "${i}".sam
+  samtools view -h -o "${i}"_2.bam > "${i}".sam
   # overwrite the previous bam file with filtered sam### allow a maximum of 2 mismatches in alignment ([^0-9] matches characters not in the range of 0 to 9)
   echo "Filtering for maximum 2 mismatches in alignment..."
   samtools view -Sh "$BAM"/${i}.sam | grep -e "^@" -e "XM:i:[012][^0-9]" > "$BAM"/${i}_lowmiss.sam
