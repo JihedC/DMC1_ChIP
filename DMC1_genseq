@@ -40,7 +40,7 @@ do
   # -F : only include reads with none of the FLAGS in INT present \
   # here INT = 4, removes all the reads unmapped
   echo "Overwriting previous "${i}".bam file..."
-  samtools view -h -o "${i}"_2.bam > "${i}".sam
+  samtools view -h -o "${i}".sam "${i}"_2.bam 
   # overwrite the previous bam file with filtered sam### allow a maximum of 2 mismatches in alignment ([^0-9] matches characters not in the range of 0 to 9)
   echo "Filtering for maximum 2 mismatches in alignment..."
   samtools view -Sh "$BAM"/${i}.sam | grep -e "^@" -e "XM:i:[012][^0-9]" > "$BAM"/${i}_lowmiss.sam
@@ -50,7 +50,7 @@ do
   #Don't know what is -n 1,9p, may be generates only headers that is used later
   #1,9p seems to indicate that the header would contain 9 lines, which is not enough for tomato, needed to chnage it to 15
   echo "Including only the reads that are properly mapped in pair..."
-  samtools view -S -f 0x02 "$BAM"/${i}_lowmiss.sam | grep -v "XS:i:" | "${SCRIPT}"/foo.py > "$BAM"/${i}_lowmiss_unique.txt
+  samtools view -S -f 0x02 "$BAM"/${i}_lowmiss.sam | grep -v "XS:i:" |python "${SCRIPT}"/foo.py > "$BAM"/${i}_lowmiss_unique.txt
   # '-f 0x02' only include the reads that are properly mapped in pair
   # 'grep -v "XS:i:' search that are not matching with "XS:i:" (unique mapping)
   cat "$BAM"/${i}_lowmiss_multi_header.sam "$BAM"/${i}_lowmiss_unique.txt > "$BAM"/${i}_lowmiss_unique_ori.sam
@@ -58,7 +58,7 @@ do
 
   echo "Combining unique and multiple mapping reads..."
   ### identify and filter multiply mapping reads, and combine with uniquely mapping reads ("both")
-  samtools view -S -f 0x02 "${i}"_mapped_lowmiss.sam | grep "XS:i:"| "${SCRIPT}"/foo.py > "${i}"_mapped_lowmiss_multi.txt
+  samtools view -S -f 0x02 "${i}"_mapped_lowmiss.sam | grep "XS:i:"|python "${SCRIPT}"/foo.py > "${i}"_mapped_lowmiss_multi.txt
   # '-f 0x02' only include the reads that are properly mapped in pair
   # 'grep -v "XS:i:' search that are matching with "XS:i:" (multiple mapping)
   cat "${i}"_mapped_lowmiss_multi_header.sam "${i}"_mapped_lowmiss_multi.txt > "${i}"_mapped_lowmiss_multi.sam
