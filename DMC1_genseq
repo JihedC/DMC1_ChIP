@@ -55,6 +55,12 @@ do
   # 'grep -v "XS:i:' search that are not matching with "XS:i:" (unique mapping)
   cat "$BAM"/${i}_lowmiss_multi_header.sam "$BAM"/${i}_lowmiss_unique.txt > "$BAM"/${i}_lowmiss_unique_ori.sam
   #concatenate both files
+  
+  # bowtie2 MAPQ scores >=42 correspond to uniquely mapping reads
+  samtools view -h -q 42 ${i}_mapped_lowmiss_unique_ori.sam > ${i}_mapped_lowmiss_unique.sam
+  samtools view -bS -o ${i}_mapped_lowmiss_unique.bam ${i}_mapped_lowmiss_unique.sam
+  samtools sort  ${i}_mapped_lowmiss_unique.bam -o ${i}_mapped_lowmiss_unique_sort.bam
+  samtools index ${i}_mapped_lowmiss_unique_sort.bam
 
   echo "Combining unique and multiple mapping reads..."
   ### identify and filter multiply mapping reads, and combine with uniquely mapping reads ("both")
