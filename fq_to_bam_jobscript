@@ -10,11 +10,12 @@ module load samtools/0.1.19
 #Copy input files to scratch
 # [here you insert the part where you copy all your input files]
 
-cp /home/jihed/DMC1/DMC1_ChIP/analysis/*.fq.gz "$TMPDIR"
+cp -r /home/jihed/DMC1/DMC1_ChIP/analysis/ "$TMPDIR"
 cp /home/jihed/genomes/index/* "$TMPDIR"
 cp /home/jihed/scripts/foo.py "$TMPDIR"
 cp /home/jihed/scripts/multi_unique_extract_pairend.r "$TMPDIR"
 cp /home/jihed/DMC1_fq_to_bam_lisa_Caspar.sh "$TMPDIR"
+
 # Now, we specify the prefixes that we want our pipeline to be run on:
 prefixarray=(Chip1_S_DA10 Chip2_S_DA11 Chip3_S_DA12 Chip4_S_DA19 Chip5_S_DA20 Chip6_S_DA21)
 
