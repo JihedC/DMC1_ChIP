@@ -1,0 +1,32 @@
+#Set job requirements
+#PBS -S /bin/bash
+#PBS -lnodes=1
+#PBS -lwalltime=1:00:00
+
+#Loading modules
+module load bowtie/2.2.4
+module load samtools/0.1.19
+
+#Copy input files to scratch
+# [here you insert the part where you copy all your input files]
+
+cp /home/jihed/DMC1/DMC1_ChIP/analysis/*.fq.gz "$TMPDIR"
+cp /home/jihed/genomes/index/* "$TMPDIR"
+cp /home/jihed/scripts/foo.py "$TMPDIR"
+cp /home/jihed/scripts/multi_unique_extract_pairend.r "$TMPDIR"
+cp /home/jihed/DMC1_fq_to_bam_lisa_Caspar.sh "$TMPDIR"
+# Now, we specify the prefixes that we want our pipeline to be run on:
+prefixarray=(Chip1_S_DA10 Chip2_S_DA11 Chip3_S_DA12 Chip4_S_DA19 Chip5_S_DA20 Chip6_S_DA21)
+
+# Now, we start the for loop, of which the iterations will be run in parallel:
+for pref in "${prefixarray[@]}"
+do
+# I'll assume you also copied your DMC1_fq_to_bam_lisa.sh script to scratch, although you don't really need to:
+    "${TMPDIR}"/DMC1_fq_to_bam_lisa_Caspar.sh --prefix=${pref} &
+done
+# The above loop will run ALL its loop iterations in parallel. That's ok, as long as there are fewer than the number of fysical cores (which is the case for your six iterations).
+# If you are going above the number of cores, there are ways to make sure that you don't start more parallel tasks than there are cores available (as this will slow down the node considerably). I'll not treat those here, as you don't need it now. Could be that there are some on the userinfo pages though (?), in case you are interested....
+
+#Copy output files from scratch to home (note: * is a wildcard, anything matching the pattern [something]_lowmiss_unique_both_sort.bam will be copied to your $HOME.)
+mkdir -p $HOME/output # -p creates the directory only if it doesn't exist yet
+cp -r "$TMPDIR"/*_lowmiss_unique_both_sort.bam $HOME/output
