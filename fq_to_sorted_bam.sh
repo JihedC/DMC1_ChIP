@@ -6,7 +6,7 @@
 usage() {
     echo -e "\n Usage: $0 -p <prefix>
 
-    -p,--prefix     Filenames to be analyzed will be ${prefix}_1.fq.gz and ${prefix}_2.fq.gz
+    -p,--prefix     Filenames to be analyzed will be \$\{prefix\}_1.fq.gz and \$\{prefix\}_2.fq.gz
     "
     exit 1;
 }
@@ -69,7 +69,8 @@ echo "Mapping bowtie2 sample "$TMPDIR"/"${PREFIX}" to tomato genome..."
 # CVL: My suggestion would actually be to make sure you also copy these input files to the TMPDIR, and then pass the arguments as e.g. -1 "${TMPDIR}"/"${PREFIX}"_1.fq.gz
 # CVL: The same goes for all your intermediately created files, like the "$TMPDIR"/"${PREFIX}".bam, I would write these on scratch by replacing that part with "${TMPDIR}"/"${PREFIX}".bam.
 # CVL: That goes for all the intermediate files throughout your code: most if these are written to the current directory, which means wherever you 'cd'-ed before you executed the script. It is more robust to make sure that all these files are written under "${TMPDIR}".
-bowtie2 --very-sensitive --no-discordant --no-mixed -x "$TMPDIR"/tomato_inx_3.00 -1 "$TMPDIR"/"${PREFIX}"_1.fq.gz -2 "$TMPDIR"/"${PREFIX}"_2.fq.gz | samtools view -h -b -F 12 > "$TMPDIR"/"${PREFIX}".bam
+bowtie2 --very-sensitive --no-discordant --no-mixed -x "$TMPDIR"/tomato_inx_3.00 -1 "$TMPDIR"/"${PREFIX}"_1.fq.gz -2 "$TMPDIR"/"${PREFIX}"_2.fq.gz -S "$TMPDIR"/"${PREFIX}".sam
+samtools view -bS -h -o "$TMPDIR"/"${PREFIX}".bam "$TMPDIR"/"${PREFIX}".sam
 # -1 : forward read
 # -2 : reverse read
 #-p 16 -k 10
@@ -120,7 +121,6 @@ Rscript "$TMPDIR"/multi_unique_extract_pairend.r "$TMPDIR"/"${PREFIX}"mdim.stats
 #the pipeline here takes the multiple aligned reads and pipe it into Rscript to use
 #the total mapping reads are locaed in the *_lowmiss.sam
 #If XS is present the read is mapping multiple time
-
 #R script rank the mutliple aligning reads and either choose the top one or random reads
 cat "$TMPDIR"/"${PREFIX}"_lowmiss_multi_header.sam  "$TMPDIR"/"${PREFIX}"_lowmiss_multi_fq10_unique.txt > "$TMPDIR"/"${PREFIX}"_lowmiss_multi_fq10_unique.sam
 
